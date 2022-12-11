@@ -41,16 +41,20 @@ foreach ($file in $files) {
 
 # Print summary
 Write-Output "*******************************************************"
-Write-Output "Checked $($numSolutions) projects."
+Write-Output "Checked $($numProjects) projects."
 if ($vulnerabilities -gt 0) {
+    Write-Output "Found $($vulnerabilities) projects with security vulnerabilities"
     Write-Error "Found $($vulnerabilities) projects with security vulnerabilities"
 }
 if ($unableToBuild -gt 0) {
+    Write-Output "Found $($unableToBuild) projects that could not be restored / built"
     Write-Error "Found $($unableToBuild) projects that could not be restored / built"
 }
 if ($packageConfig -gt 0) {
+    Write-Output "Found $($packageConfig) projects using outdated package.config files"
     Write-Error "Found $($packageConfig) projects using outdated package.config files"
 }
 if ($deprecatedProjects -gt 0) {
+    Write-Output "Found $($deprecatedProjects) projects using deprecated WebForms or SilverLight"
     Write-Error "Found $($deprecatedProjects) projects using deprecated WebForms or SilverLight"
 }
