@@ -223,7 +223,7 @@ foreach ($file in $files) {
 
 # Print summary to console and to file
 $now = Get-Date
-Write-Output "Repository scan finished $($now)." | Tee-Object -FilePath -Append $outFileName
+Write-Output "Repository scan finished $($now)." | Tee-Object -Append -FilePath $outFileName
 Write-Output "*******************************************************" | Tee-Object -Append -FilePath $outFileName
 Write-Output "Checked $($numProjects) C# and NPM projects." | Tee-Object -Append -FilePath $outFileName
 Write-Output "Found $($unableToBuild) projects that could not be built." | Tee-Object -Append -FilePath $outFileName
