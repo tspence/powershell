@@ -20,7 +20,7 @@ $csvFileName = "..\security.$($today).csv"
 
 # Clear out files and write headers
 Write-Output "Repository scan began on $($now)." | Tee-Object -FilePath $outFileName
-Write-Output "Type,Location,Build Status,Vulnerabilities,Warnings,Errors" | Out-File -FilePath $csvFileName
+Write-Output "Type,Location,Build Status,Vulnerabilities,Warnings,Errors,Tests Failed,Tests Passed" | Out-File -FilePath $csvFileName
 
 # Identify all NPM projects, who should each be identified by a file named package.json
 $files = Get-ChildItem -Path "." -Recurse -Filter "package.json"
@@ -30,12 +30,12 @@ foreach ($file in $files) {
     if ($file.FullName -like "*node_modules*") {
         # Write-Output "This appears to be a subproject: $($file.FullName)"
     } else {
-        Write-Output "Running npm install on project $($file.FullName)..."
-        Write-Output "Changing directory to $($file.Directory)."
+        Write-Output "Running npm install on project $($file.FullName)..." | Tee-Object -Append -FilePath $outFileName
+        Write-Output "Changing directory to $($file.Directory)." | Tee-Object -Append -FilePath $outFileName
         Push-Location $file.Directory
-        Write-Output "Running npm install in this folder."
+        Write-Output "Running npm install in this folder." | Tee-Object -Append -FilePath $outFileName
         $npmInstall = & npm install 2>&1
-        Write-Output "Finished with npm install."
+        Write-Output "Finished with npm install." | Tee-Object -Append -FilePath $outFileName
         Pop-Location
 
         # Scan for vulnerability detection
@@ -44,7 +44,7 @@ foreach ($file in $files) {
         foreach ($match in $simpleResults) {
             $vulnerabilities = $match.Matches.groups[1].value
             if ($failed -gt 0) {
-                Write-Output "ERROR: NPM project $($file.FullName) has $($vulnerabilities) audit vulnerabilities"
+                Write-Output "ERROR: NPM project $($file.FullName) has $($vulnerabilities) audit vulnerabilities" | Tee-Object -Append -FilePath $outFileName
             }
             $totalVulnerabilities += $vulnerabilities
             $found = 1
@@ -78,6 +78,12 @@ foreach ($file in $files) {
     $packagelist = & dotnet list $file.FullName package --vulnerable 2>&1
     $packagelist = $restore + $packagelist
 
+    # Is this a test project?  If so, run tests on it
+    $findTestPlatform = Select-String -Path $file.FullName -Pattern "TestPlatform"
+    if ($SEL -ne $null) {
+        
+    }
+
     # Check type of response
     $numProjects++
     if ($packagelist -like "*has no vulnerable packages given the current sources*") {
@@ -104,8 +110,7 @@ foreach ($file in $files) {
         $projectsWithVulnerabilities++
         Write-Output "DotNet,$($file.FullName),OK,1,0,0" | Out-File -Append -FilePath $csvFileName
     } else {
-        Write-Output "Unknown vulnerability scan for $($file.FullName)"
-        Write-Output $packagelist
+        Write-Output "Unknown vulnerability scan for $($file.FullName)" | Tee-Object -Append -FilePath $outFileName
         $unableToBuild++
         Write-Output "DotNet,$($file.FullName),UNKNOWN,n/a,n/a,n/a" | Out-File -Append -FilePath $csvFileName
     }
@@ -117,7 +122,7 @@ $files = Get-ChildItem -Path "." -Recurse -Filter "*.sln"
 foreach ($file in $files) {
 
     # Build this solution using warnings-as-errors
-    Write-Output "Building solution $($file.FullName)..."
+    Write-Output "Building solution $($file.FullName)..." | Tee-Object -Append -FilePath $outFileName
     $build = & "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\amd64\MSBuild.exe" $file.FullName 2>&1
 
     # Scan for something obvious
@@ -129,9 +134,9 @@ foreach ($file in $files) {
         $numErrors = $match.Matches.groups[2].value
         $numWarnings = $match.Matches.groups[1].value
         if ($numErrors -gt 0) {
-            Write-Output "Found $($match.Matches.groups[1].value) warnings and $($match.Matches.groups[2].value) errors in $($file.FullName)"
+            Write-Output "Found $($match.Matches.groups[1].value) warnings and $($match.Matches.groups[2].value) errors in $($file.FullName)" | Tee-Object -Append -FilePath $outFileName
         } elseif ($numWarnings -gt 0) {
-            Write-Output "Found $($match.Matches.groups[1].value) warnings and $($match.Matches.groups[2].value) errors in $($file.FullName)"
+            Write-Output "Found $($match.Matches.groups[1].value) warnings and $($match.Matches.groups[2].value) errors in $($file.FullName)" | Tee-Object -Append -FilePath $outFileName
         }
         $warnings += $numWarnings
         $errors += $numErrors
@@ -142,26 +147,79 @@ foreach ($file in $files) {
     # What type of response did we get?
     $numProjects++
     if ($build -like "*Build succeeded.*") {
-        Write-Output "OK"
+        Write-Output "OK" | Tee-Object -Append -FilePath $outFileName
         Write-Output "Solution,$($file.FullName),OK,0,0,0" | Out-File -Append -FilePath $csvFileName
     } elseif ($warningsThisSolution -gt 0) {
-        Write-Output "WARNING: The solution $($file.FullName) needs fixes before we can enable /warnaserror"
+        Write-Output "WARNING: The solution $($file.FullName) needs fixes before we can enable /warnaserror" | Tee-Object -Append -FilePath $outFileName
         $numWarningSolutions++
         Write-Output "Solution,$($file.FullName),OK,0,$($warningsThisSolution),$($errorsThisSolution)" | Out-File -Append -FilePath $csvFileName
     } elseif ($build -like "*Build FAILED.*") {
-        Write-Output "ERROR: Unable to build $($file.FullName)"
+        Write-Output "ERROR: Unable to build $($file.FullName)" | Tee-Object -Append -FilePath $outFileName
         $unableToBuild++
         Write-Output "Solution,$($file.FullName),OK,0,$($warningsThisSolution),$($errorsThisSolution)" | Out-File -Append -FilePath $csvFileName
     } else {
-        Write-Output "Unknown build result for $($file.FullName)"
-        Write-Output $build
+        Write-Output "Unknown build result for $($file.FullName)" | Tee-Object -Append -FilePath $outFileName
         $unableToBuild++
         Write-Output "Solution,$($file.FullName),UNKNOWN,n/a,n/a,n/a" | Out-File -Append -FilePath $csvFileName
     }
 }
 
+# Identify all CSPROJ files in the solution and scan for security
+$files = Get-ChildItem -Path "." -Recurse -Filter "*.test.csproj"
+foreach ($file in $files) {
+
+    # Compile and test the project using VSTest console
+    Write-Output "Building test project $($file.FullName)..." | Tee-Object -Append -FilePath $outFileName
+    $build = & "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\amd64\MSBuild.exe" $file.FullName 2>&1
+    if ($build -like "*Build succeeded.*") {
+        Write-Output "OK" | Tee-Object -Append -FilePath $outFileName
+    } else {
+        Write-Output "ERROR: $($file.FullName) cannot be built." | Tee-Object -Append -FilePath $outFileName
+        $unableToBuild++
+        Write-Output "Test,$($file.FullName),UNABLE TO BUILD,n/a,n/a,n/a" | Out-File -Append -FilePath $csvFileName
+        continue
+    }
+
+    # Find this particular DLL file somewhere within its build folder
+    $dlls = Get-ChildItem -Path "$($file.Directory)/bin" -Recurse -Filter "*.test.dll"
+    foreach ($dll in $dlls) {
+        Write-Output "Running tests for $($dll.FullName)..." | Tee-Object -Append -FilePath $outFileName
+        $testRunner = & "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\TestWindow\vstest.console.exe" $dll.FullName 2>&1
+
+        # Check for passed tests and failed tests
+        $simpleResults = select-string "(?m)Total tests: (\d+)\s+Passed: (\d+)\s+Failed: (\d+)" -InputObject $testRunner
+        foreach ($match in $simpleResults) {
+            $tests = $match.Matches.groups[1].value
+            $passed = $match.Matches.groups[2].value
+            $failed = $match.Matches.groups[3].value
+            if ($failed -gt 0) {
+                Write-Output "ERROR: Test project $($file.FullName) has $($failed) failing tests." | Tee-Object -Append -FilePath $outFileName
+            }
+            $totalTests += $tests
+            $testsPassed += $passed
+            $testsFailed += $failed
+        }
+
+        # Accumulate test log results for failure scanning
+        $allresults = $allresults + $testRunner
+    }
+
+    # Check type of response
+    if ($allresults -like "*Test Run Failed.*") {
+        Write-Output "ERROR: $($file.FullName) failed some tests." | Tee-Object -Append -FilePath $outFileName
+        Write-Output "Test,$($file.FullName),OK,0,0,0,$(failedThisProject),$(passedThisProject)" | Out-File -Append -FilePath $csvFileName
+    } elseif ($allresults -like "*Test Run Passed.*") {
+        Write-Output "OK" | Tee-Object -Append -FilePath $outFileName
+        Write-Output "Test,$($file.FullName),OK,0,0,0,$(failedThisProject),$(passedThisProject)" | Out-File -Append -FilePath $csvFileName
+    } else {
+        Write-Output "Unknown test results for $($file.FullName)" | Tee-Object -Append -FilePath $outFileName
+        Write-Output "Test,$($file.FullName),UNKNOWN,n/a,n/a,n/a,n/a,n/a" | Out-File -Append -FilePath $csvFileName
+    }
+}
 
 # Print summary to console and to file
+$now = Get-Date
+Write-Output "Repository scan finished $($now)." | Tee-Object -FilePath $outFileName
 Write-Output "*******************************************************" | Tee-Object -Append -FilePath $outFileName
 Write-Output "Checked $($numProjects) C# and NPM projects." | Tee-Object -Append -FilePath $outFileName
 Write-Output "Found $($unableToBuild) projects that could not be built." | Tee-Object -Append -FilePath $outFileName
@@ -170,3 +228,4 @@ Write-Output "Found $($packageConfig) C# projects using outdated package.config 
 Write-Output "Found $($deprecatedProjects) C# projects using deprecated WebForms or SilverLight" | Tee-Object -Append -FilePath $outFileName
 Write-Output "Found $($totalErrors) errors and $($totalWarnings) in C# solutions" | Tee-Object -Append -FilePath $outFileName
 Write-Output "Found $($numWarningSolutions) C# solutions that need fixes before they can use /warnaserror" | Tee-Object -Append -FilePath $outFileName
+Write-Output "Found $($totalTests) tests with $($testsPassed) passing and $($testsFailed) failing."
