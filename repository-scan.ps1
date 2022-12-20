@@ -16,8 +16,8 @@ $totalTests = 0
 # Figure out the filename for today's output
 $now = Get-Date
 $today = Get-Date -format yyyy-MM-dd
-$outFileName = "..\security.$($today).txt"
-$csvFileName = "..\security.$($today).csv"
+$outFileName = "..\security.$($today).txt" | Resolve-Path
+$csvFileName = "..\security.$($today).csv" | Resolve-Path
 
 # Clear out files and write headers
 Write-Output "Repository scan began on $($now)." | Tee-Object -FilePath $outFileName
