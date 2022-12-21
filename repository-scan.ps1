@@ -1,9 +1,6 @@
 $totalVulnerabilities = 0
 $testsPassed = 0
 $testsFailed = 0
-$successProjects = 0
-$failedProjects = 0
-$brokenProjects = 0
 $numProjects = 0
 $projectsWithVulnerabilities = 0
 $unableToBuild = 0
