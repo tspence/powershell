@@ -76,12 +76,6 @@ foreach ($file in $files) {
     $packagelist = & dotnet list $file.FullName package --vulnerable 2>&1
     $packagelist = $restore + $packagelist
 
-    # Is this a test project?  If so, run tests on it
-    $findTestPlatform = Select-String -Path $file.FullName -Pattern "TestPlatform"
-    if ($SEL -ne $null) {
-        
-    }
-
     # Check type of response
     $numProjects++
     if ($packagelist -like "*has no vulnerable packages given the current sources*") {
