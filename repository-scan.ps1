@@ -222,6 +222,6 @@ Write-Output "Found $($unableToBuild) projects that could not be built." | Tee-O
 Write-Output "Found $($projectsWithVulnerabilities) projects that contained $($totalVulnerabilities) total security vulnerabilities." | Tee-Object -Append -FilePath $outFileName
 Write-Output "Found $($packageConfig) C# projects using outdated package.config files." | Tee-Object -Append -FilePath $outFileName
 Write-Output "Found $($deprecatedProjects) C# projects using deprecated WebForms or SilverLight." | Tee-Object -Append -FilePath $outFileName
-Write-Output "Found $($totalErrors) errors and $($totalWarnings) in C# solutions." | Tee-Object -Append -FilePath $outFileName
+Write-Output "Found $($totalErrors) errors and $($totalWarnings) warnings in C# solutions." | Tee-Object -Append -FilePath $outFileName
 Write-Output "Found $($numWarningSolutions) C# solutions that need fixes before they can use /warnaserror." | Tee-Object -Append -FilePath $outFileName
 Write-Output "Found $($totalTests) tests with $($testsPassed) passing and $($testsFailed) failing." | Tee-Object -Append -FilePath $outFileName
