@@ -25,43 +25,46 @@ Write-Output "Type,Location,Build Status,Vulnerabilities,Warnings,Errors,Tests F
 $files = Get-ChildItem -Path "." -Recurse -Filter "package.json"
 foreach ($file in $files) {
 
-    # Is this a sub-project within an existing project, or a project on its own?
-    if ($file.FullName -like "*node_modules*") {
-        # Write-Output "This appears to be a subproject: $($file.FullName)"
-    } else {
-        Write-Output "Running npm install on project $($file.FullName)..." | Tee-Object -Append -FilePath $outFileName
-        Write-Output "Changing directory to $($file.Directory)." | Tee-Object -Append -FilePath $outFileName
+    # Is this package.json file within a larger package.json project?
+    $isChildOfLargerProject = 0
+    $testPath = $file.Directory
+    while (1 -eq 1) {
+        $testPath = Join-Path -Path $testPath -ChildPath ".." | Resolve-Path
+        $testPathString = Convert-Path $testPath
+        if ($testPathString.Length -lt 4) {
+            break
+        }
+        $testPackageFile = Join-Path -Path $testPath -ChildPath "package.json"
+        $exists = Test-Path -Path $testPackageFile -PathType leaf
+        if ($exists) {
+            $isChildOfLargerProject = 1
+            break
+        }
+    }
+
+    # Only test this if it is a standalone project
+    if ($isChildOfLargerProject -eq 0) {
+        Write-Output "Testing $($file.Directory) npm ..."
         Push-Location $file.Directory
-        Write-Output "Running npm install in this folder." | Tee-Object -Append -FilePath $outFileName
-        $npmInstall = & npm install 2>&1
-        Write-Output "Finished with npm install." | Tee-Object -Append -FilePath $outFileName
+        $npmInstall = & npm clean-install 2>&1
         Pop-Location
 
-        # Scan for vulnerability detection
-        $found = 0
-        $simpleResults = select-string "(?m)found (\d+) (high severity vulnerabilities|high severity vulnerability|vulnerabilities|vulnerability)" -InputObject $npmInstall
-        foreach ($match in $simpleResults) {
-            $vulnerabilities = $match.Matches.groups[1].value
-            if ($failed -gt 0) {
-                Write-Output "ERROR: NPM project $($file.FullName) has $($vulnerabilities) audit vulnerabilities" | Tee-Object -Append -FilePath $outFileName
-            }
-            $totalVulnerabilities += $vulnerabilities
-            $found = 1
-        }
-
-        # Check for audit problems
+        # Check for projects that can't run npm install
         $numProjects++
-        if ($found -gt 0) {
-            Write-Output "Found $($vulnerabilities) vulnerabilities in $($file.Directory)" | Tee-Object -Append -FilePath $outFileName
-            $projectsWithVulnerabilities++
-            Write-Output "NodeJS,$($file.Directory),OK,$($vulnerabilities),0,0,0,0" | Out-File -Append -FilePath $csvFileName
-        } elseif ($npmInstall -like "*npm ERR!*") {
+        if ($npmInstall -like "*npm ERR!*") {
             Write-Output "Unable to run npm install on $($file.Directory)." | Tee-Object -Append -FilePath $outFileName
             $unableToBuild++
             Write-Output "NodeJS,$($file.Directory),DOES NOT COMPILE,n/a,0,0,0,0" | Out-File -Append -FilePath $csvFileName
         } else {
-            Write-Output "Unable to parse npm install output for $($file.Directory)." | Tee-Object -Append -FilePath $outFileName
-            Write-Output "NodeJS,$($file.Directory),UNKNOWN,n/a,0,0,0,0" | Out-File -Append -FilePath $csvFileName
+            # Okay, this project can build, we should be able to do an npm audit
+            Push-Location $file.Directory
+            $npmAudit = & npm audit --json | ConvertFrom-Json
+            Pop-Location
+            $vulnerabilities = $npmAudit.metadata.vulnerabilities.moderate + $npmAudit.metadata.vulnerabilities.high + $npmAudit.metadata.vulnerabilities.critical
+            Write-Output "Found $($npmAudit.metadata.vulnerabilities.critical) critical / $($npmAudit.metadata.vulnerabilities.high) high / $($npmAudit.metadata.vulnerabilities.moderate) moderate vulnerabilities in $($file.Directory)." | Tee-Object -Append -FilePath $outFileName
+            $totalVulnerabilities += $vulnerabilities
+            $projectsWithVulnerabilities++
+            Write-Output "NodeJS,$($file.Directory),OK,$($vulnerabilities),0,0,0,0" | Out-File -Append -FilePath $csvFileName
         }
     }
 }
@@ -71,7 +74,6 @@ $files = Get-ChildItem -Path "." -Recurse -Filter "*.csproj"
 foreach ($file in $files) {
 
     # Execute dotnet vulnerability scan and capture output
-    Write-Output "Checking package $($file.FullName)..." | Tee-Object -Append -FilePath $outFileName
     $restore = & dotnet restore $file.FullName 2>&1
     $packagelist = & dotnet list $file.FullName package --vulnerable 2>&1
     $packagelist = $restore + $packagelist
@@ -79,7 +81,6 @@ foreach ($file in $files) {
     # Check type of response
     $numProjects++
     if ($packagelist -like "*has no vulnerable packages given the current sources*") {
-        Write-Output "OK" | Tee-Object -Append -FilePath $outFileName
         Write-Output "DotNet,$($file.FullName),OK,0,0,0,0,0" | Out-File -Append -FilePath $csvFileName
     } elseif ($packagelist -like "*uses package.config for NuGet packages*") {
         Write-Output "WARNING: $($file.FullName) uses package.config." | Tee-Object -Append -FilePath $outFileName
@@ -114,7 +115,6 @@ $files = Get-ChildItem -Path "." -Recurse -Filter "*.sln"
 foreach ($file in $files) {
 
     # Build this solution using warnings-as-errors
-    Write-Output "Building solution $($file.FullName)..." | Tee-Object -Append -FilePath $outFileName
     $build = & "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\amd64\MSBuild.exe" $file.FullName 2>&1
 
     # Scan for something obvious
@@ -139,7 +139,6 @@ foreach ($file in $files) {
     # What type of response did we get?
     $numProjects++
     if ($build -like "*Build succeeded.*") {
-        Write-Output "OK" | Tee-Object -Append -FilePath $outFileName
         Write-Output "Solution,$($file.FullName),OK,0,0,0,0,0" | Out-File -Append -FilePath $csvFileName
     } elseif ($warningsThisSolution -gt 0) {
         Write-Output "WARNING: The solution $($file.FullName) needs fixes before we can enable /warnaserror" | Tee-Object -Append -FilePath $outFileName
@@ -161,10 +160,9 @@ $files = Get-ChildItem -Path "." -Recurse -Filter "*.test.csproj"
 foreach ($file in $files) {
 
     # Compile and test the project using VSTest console
-    Write-Output "Building test project $($file.FullName)..." | Tee-Object -Append -FilePath $outFileName
     $build = & "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\amd64\MSBuild.exe" $file.FullName 2>&1
     if ($build -like "*Build succeeded.*") {
-        Write-Output "OK" | Tee-Object -Append -FilePath $outFileName
+        # No action, all is well
     } else {
         Write-Output "ERROR: $($file.FullName) cannot be built." | Tee-Object -Append -FilePath $outFileName
         $unableToBuild++
@@ -175,7 +173,6 @@ foreach ($file in $files) {
     # Find this particular DLL file somewhere within its build folder
     $dlls = Get-ChildItem -Path "$($file.Directory)/bin" -Recurse -Filter "*.test.dll"
     foreach ($dll in $dlls) {
-        Write-Output "Running tests for $($dll.FullName)..." | Tee-Object -Append -FilePath $outFileName
         $testRunner = & "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\TestWindow\vstest.console.exe" $dll.FullName 2>&1
 
         # Check for passed tests and failed tests
@@ -205,7 +202,6 @@ foreach ($file in $files) {
         Write-Output "ERROR: $($file.FullName) failed some tests." | Tee-Object -Append -FilePath $outFileName
         Write-Output "Test,$($file.FullName),OK,0,0,0,$($failedThisProject),$($passedThisProject)" | Out-File -Append -FilePath $csvFileName
     } elseif ($allresults -like "*Test Run Passed.*") {
-        Write-Output "OK" | Tee-Object -Append -FilePath $outFileName
         Write-Output "Test,$($file.FullName),OK,0,0,0,$($failedThisProject),$($passedThisProject)" | Out-File -Append -FilePath $csvFileName
     } else {
         Write-Output "Unknown test results for $($file.FullName)" | Tee-Object -Append -FilePath $outFileName
