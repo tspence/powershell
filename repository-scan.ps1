@@ -44,7 +44,6 @@ foreach ($file in $files) {
 
     # Only test this if it is a standalone project
     if ($isChildOfLargerProject -eq 0) {
-        Write-Output "Testing $($file.Directory) npm ..."
         Push-Location $file.Directory
         $npmInstall = & npm clean-install 2>&1
         Pop-Location
@@ -175,22 +174,27 @@ foreach ($file in $files) {
     foreach ($dll in $dlls) {
         $testRunner = & "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\TestWindow\vstest.console.exe" $dll.FullName 2>&1
 
-        # Check for passed tests and failed tests
-        $simpleResults = select-string "(?m)Total tests: (\d+)\s+Passed: (\d+)\s+Failed: (\d+)" -InputObject $testRunner
-        $failedThisProject = 0
+        # Check for passed tests first
+        $simpleResults = select-string "(?m)\s+Passed: (\d+)" -InputObject $testRunner
         $passedThisProject = 0
         foreach ($match in $simpleResults) {
-            $tests = $match.Matches.groups[1].value
-            $passed = $match.Matches.groups[2].value
-            $failed = $match.Matches.groups[3].value
-            if ($failed -gt 0) {
-                Write-Output "ERROR: Test project $($file.FullName) has $($failed) failing tests." | Tee-Object -Append -FilePath $outFileName
-            }
-            $totalTests += $tests
+            $passed = $match.Matches.groups[1].value
+            $totalTests += $passed
             $testsPassed += $passed
+            $passedThisProject += $passed
+        }
+        
+        # Check for passed only
+        $simpleResults = select-string "(?m)\s+Failed: (\d+)" -InputObject $testRunner
+        $failedThisProject = 0
+        foreach ($match in $simpleResults) {
+            $failed = $match.Matches.groups[1].value
+            if ($failed -gt 0) {
+                Write-Output "ERROR: Test project $($dll.FullName) has $($failed) failing tests."
+            }
+            $totalTests += $failed
             $testsFailed += $failed
             $failedThisProject += $failed
-            $passedThisProject += $passed
         }
 
         # Accumulate test log results for failure scanning
@@ -202,6 +206,8 @@ foreach ($file in $files) {
         Write-Output "ERROR: $($file.FullName) failed some tests." | Tee-Object -Append -FilePath $outFileName
         Write-Output "Test,$($file.FullName),OK,0,0,0,$($failedThisProject),$($passedThisProject)" | Out-File -Append -FilePath $csvFileName
     } elseif ($allresults -like "*Test Run Passed.*") {
+        Write-Output "Test,$($file.FullName),OK,0,0,0,$($failedThisProject),$($passedThisProject)" | Out-File -Append -FilePath $csvFileName
+    } elseif ($allresults -like "*Test Run Successful.*") {
         Write-Output "Test,$($file.FullName),OK,0,0,0,$($failedThisProject),$($passedThisProject)" | Out-File -Append -FilePath $csvFileName
     } else {
         Write-Output "Unknown test results for $($file.FullName)" | Tee-Object -Append -FilePath $outFileName
