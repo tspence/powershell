@@ -67,15 +67,66 @@ foreach ($file in $files) {
         }
     }
 }
+# Identify all solution files in the solution
+$files = Get-ChildItem -Path "." -Recurse -Filter "*.sln"
+foreach ($file in $files) {
+    if ($file.FullName -like "*\node_modules\*") {
+        # It's a solution within a node module - ignore it
+    } else {
+
+        # Build this solution using warnings-as-errors
+        $build = & "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\amd64\MSBuild.exe" $file.FullName 2>&1
+
+        # Scan for something obvious
+        # To view the entire output: Write-Output "Capture group: $($match.Matches.groups[0].value)"
+        $simpleResults = select-string "(?m)     (\d+) Warning\(s\)     (\d+) Error\(s\)" -InputObject $build
+        $warningsThisSolution = 0
+        $errorsThisSolution = 0
+        foreach ($match in $simpleResults) {
+            $numErrors = $match.Matches.groups[2].value
+            $numWarnings = $match.Matches.groups[1].value
+            if ($numErrors -gt 0) {
+                Write-Output "Found $($match.Matches.groups[1].value) warnings and $($match.Matches.groups[2].value) errors in $($file.FullName)" | Tee-Object -Append -FilePath $outFileName
+            } elseif ($numWarnings -gt 0) {
+                Write-Output "Found $($match.Matches.groups[1].value) warnings and $($match.Matches.groups[2].value) errors in $($file.FullName)" | Tee-Object -Append -FilePath $outFileName
+            }
+            $totalWarnings += $numWarnings
+            $totalErrors += $numErrors
+            $warningsThisSolution += $numWarnings
+            $errorsThisSolution += $numErrors
+        }
+
+        # What type of response did we get?
+        $numProjects++
+        if ($build -like "*Build FAILED.*") {
+            Write-Output "ERROR: Unable to build $($file.FullName)" | Tee-Object -Append -FilePath $outFileName
+            $unableToBuild++
+            Write-Output "Solution,$($file.FullName),OK,0,$($warningsThisSolution),$($errorsThisSolution),0,0" | Out-File -Append -FilePath $csvFileName
+        } elseif ($errorsThisSolution -gt 0) {
+            Write-Output "ERROR: Unable to build $($file.FullName)" | Tee-Object -Append -FilePath $outFileName
+            $unableToBuild++
+            Write-Output "Solution,$($file.FullName),OK,0,$($warningsThisSolution),$($errorsThisSolution),0,0" | Out-File -Append -FilePath $csvFileName
+        } elseif ($warningsThisSolution -gt 0) {
+            Write-Output "WARNING: The solution $($file.FullName) needs fixes before we can enable /warnaserror" | Tee-Object -Append -FilePath $outFileName
+            $numWarningSolutions++
+            Write-Output "Solution,$($file.FullName),OK,0,$($warningsThisSolution),$($errorsThisSolution),0,0" | Out-File -Append -FilePath $csvFileName
+        } elseif ($build -like "*Build succeeded.*") {
+            Write-Output "Solution,$($file.FullName),OK,0,0,0,0,0" | Out-File -Append -FilePath $csvFileName
+        } else {
+            Write-Output "Unknown build result for $($file.FullName)" | Tee-Object -Append -FilePath $outFileName
+            $unableToBuild++
+            Write-Output "Solution,$($file.FullName),UNKNOWN,n/a,n/a,n/a,n/a,n/a" | Out-File -Append -FilePath $csvFileName
+        }
+    }
+}
+
 
 # Identify all CSPROJ files in the solution and scan for security
 $files = Get-ChildItem -Path "." -Recurse -Filter "*.csproj"
 foreach ($file in $files) {
 
     # Execute dotnet vulnerability scan and capture output
-    $restore = & dotnet restore $file.FullName 2>&1
     $packagelist = & dotnet list $file.FullName package --vulnerable 2>&1
-    $packagelist = $restore + $packagelist
 
     # Check type of response
     $numProjects++
@@ -108,53 +159,7 @@ foreach ($file in $files) {
     }
 }
 
-
-# Identify all solution files in the solution
-$files = Get-ChildItem -Path "." -Recurse -Filter "*.sln"
-foreach ($file in $files) {
-
-    # Build this solution using warnings-as-errors
-    $build = & "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\amd64\MSBuild.exe" $file.FullName 2>&1
-
-    # Scan for something obvious
-    # To view the entire output: Write-Output "Capture group: $($match.Matches.groups[0].value)"
-    $simpleResults = select-string "(?m)     (\d+) Warning\(s\)     (\d+) Error\(s\)" -InputObject $build
-    $warningsThisSolution = 0
-    $errorsThisSolution = 0
-    foreach ($match in $simpleResults) {
-        $numErrors = $match.Matches.groups[2].value
-        $numWarnings = $match.Matches.groups[1].value
-        if ($numErrors -gt 0) {
-            Write-Output "Found $($match.Matches.groups[1].value) warnings and $($match.Matches.groups[2].value) errors in $($file.FullName)" | Tee-Object -Append -FilePath $outFileName
-        } elseif ($numWarnings -gt 0) {
-            Write-Output "Found $($match.Matches.groups[1].value) warnings and $($match.Matches.groups[2].value) errors in $($file.FullName)" | Tee-Object -Append -FilePath $outFileName
-        }
-        $totalWarnings += $numWarnings
-        $totalErrors += $numErrors
-        $warningsThisSolution += $numWarnings
-        $errorsThisSolution += $numErrors
-    }
-
-    # What type of response did we get?
-    $numProjects++
-    if ($build -like "*Build succeeded.*") {
-        Write-Output "Solution,$($file.FullName),OK,0,0,0,0,0" | Out-File -Append -FilePath $csvFileName
-    } elseif ($warningsThisSolution -gt 0) {
-        Write-Output "WARNING: The solution $($file.FullName) needs fixes before we can enable /warnaserror" | Tee-Object -Append -FilePath $outFileName
-        $numWarningSolutions++
-        Write-Output "Solution,$($file.FullName),OK,0,$($warningsThisSolution),$($errorsThisSolution),0,0" | Out-File -Append -FilePath $csvFileName
-    } elseif ($build -like "*Build FAILED.*") {
-        Write-Output "ERROR: Unable to build $($file.FullName)" | Tee-Object -Append -FilePath $outFileName
-        $unableToBuild++
-        Write-Output "Solution,$($file.FullName),OK,0,$($warningsThisSolution),$($errorsThisSolution),0,0" | Out-File -Append -FilePath $csvFileName
-    } else {
-        Write-Output "Unknown build result for $($file.FullName)" | Tee-Object -Append -FilePath $outFileName
-        $unableToBuild++
-        Write-Output "Solution,$($file.FullName),UNKNOWN,n/a,n/a,n/a,n/a,n/a" | Out-File -Append -FilePath $csvFileName
-    }
-}
-
-# Identify all CSPROJ files in the solution and scan for security
+# Identify all CSPROJ files with test in their name and try to run them as VS Console Tests
 $files = Get-ChildItem -Path "." -Recurse -Filter "*.test.csproj"
 foreach ($file in $files) {
 
@@ -202,12 +207,10 @@ foreach ($file in $files) {
     }
 
     # Check type of response
-    if ($allresults -like "*Test Run Failed.*") {
+    if ($failedThisProject -gt 0) {
         Write-Output "ERROR: $($file.FullName) failed some tests." | Tee-Object -Append -FilePath $outFileName
         Write-Output "Test,$($file.FullName),OK,0,0,0,$($failedThisProject),$($passedThisProject)" | Out-File -Append -FilePath $csvFileName
-    } elseif ($allresults -like "*Test Run Passed.*") {
-        Write-Output "Test,$($file.FullName),OK,0,0,0,$($failedThisProject),$($passedThisProject)" | Out-File -Append -FilePath $csvFileName
-    } elseif ($allresults -like "*Test Run Successful.*") {
+    } elseif ($passedThisProject -gt 0) {
         Write-Output "Test,$($file.FullName),OK,0,0,0,$($failedThisProject),$($passedThisProject)" | Out-File -Append -FilePath $csvFileName
     } else {
         Write-Output "Unknown test results for $($file.FullName)" | Tee-Object -Append -FilePath $outFileName
