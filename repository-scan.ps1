@@ -176,12 +176,14 @@ foreach ($file in $files) {
 
     # Find this particular DLL file somewhere within its build folder
     $dlls = Get-ChildItem -Path "$($file.Directory)/bin" -Recurse -Filter "*.test.dll"
+    $passedThisProject = 0
+    $failedThisProject = 0
+    $numDlls = 0
     foreach ($dll in $dlls) {
         $testRunner = & "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\TestWindow\vstest.console.exe" $dll.FullName 2>&1
 
         # Check for passed tests first
         $simpleResults = select-string "(?m)\s+Passed: (\d+)" -InputObject $testRunner
-        $passedThisProject = 0
         foreach ($match in $simpleResults) {
             $passed = $match.Matches.groups[1].value
             $totalTests += $passed
@@ -191,7 +193,6 @@ foreach ($file in $files) {
         
         # Check for passed only
         $simpleResults = select-string "(?m)\s+Failed: (\d+)" -InputObject $testRunner
-        $failedThisProject = 0
         foreach ($match in $simpleResults) {
             $failed = $match.Matches.groups[1].value
             if ($failed -gt 0) {
@@ -204,11 +205,12 @@ foreach ($file in $files) {
 
         # Accumulate test log results for failure scanning
         $allresults = $allresults + $testRunner
+        $numDlls++
     }
 
     # Check type of response
     if ($failedThisProject -gt 0) {
-        Write-Output "ERROR: $($file.FullName) failed some tests." | Tee-Object -Append -FilePath $outFileName
+        Write-Output "Project $($dll.FullName) has $($numDlls) test DLLs with $($failedThisProject) failing and $($passedThisProject) passing tests." | Tee-Object -Append -FilePath $outFileName
         Write-Output "Test,$($file.FullName),OK,0,0,0,$($failedThisProject),$($passedThisProject)" | Out-File -Append -FilePath $csvFileName
     } elseif ($passedThisProject -gt 0) {
         Write-Output "Test,$($file.FullName),OK,0,0,0,$($failedThisProject),$($passedThisProject)" | Out-File -Append -FilePath $csvFileName
