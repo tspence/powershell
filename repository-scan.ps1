@@ -67,6 +67,7 @@ foreach ($file in $files) {
         }
     }
 }
+
 # Identify all solution files in the solution
 $files = Get-ChildItem -Path "." -Recurse -Filter "*.sln"
 foreach ($file in $files) {
@@ -119,7 +120,6 @@ foreach ($file in $files) {
         }
     }
 }
-
 
 # Identify all CSPROJ files in the solution and scan for security
 $files = Get-ChildItem -Path "." -Recurse -Filter "*.csproj"
