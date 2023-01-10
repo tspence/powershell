@@ -78,22 +78,21 @@ foreach ($file in $files) {
         # Build this solution using warnings-as-errors
         $build = & "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\amd64\MSBuild.exe" $file.FullName 2>&1
 
-        # Scan for something obvious
-        # To view the entire output: Write-Output "Capture group: $($match.Matches.groups[0].value)"
-        $simpleResults = select-string "(?m)     (\d+) Warning\(s\)     (\d+) Error\(s\)" -InputObject $build
+        # Scan for warnings
+        $simpleResults = select-string "\s(\d+) Warning\(s\)" -InputObject $build
         $warningsThisSolution = 0
+        foreach ($match in $simpleResults) {
+            $numWarnings = $match.Matches.groups[1].value
+            $totalWarnings += $numWarnings
+            $warningsThisSolution += $numWarnings
+        }
+
+        # To view the entire output: Write-Output "Capture group: $($match.Matches.groups[0].value)"
+        $simpleResults = select-string "\s(\d+) Error\(s\)" -InputObject $build
         $errorsThisSolution = 0
         foreach ($match in $simpleResults) {
-            $numErrors = $match.Matches.groups[2].value
-            $numWarnings = $match.Matches.groups[1].value
-            if ($numErrors -gt 0) {
-                Write-Output "Found $($match.Matches.groups[1].value) warnings and $($match.Matches.groups[2].value) errors in $($file.FullName)" | Tee-Object -Append -FilePath $outFileName
-            } elseif ($numWarnings -gt 0) {
-                Write-Output "Found $($match.Matches.groups[1].value) warnings and $($match.Matches.groups[2].value) errors in $($file.FullName)" | Tee-Object -Append -FilePath $outFileName
-            }
-            $totalWarnings += $numWarnings
+            $numErrors = $match.Matches.groups[1].value
             $totalErrors += $numErrors
-            $warningsThisSolution += $numWarnings
             $errorsThisSolution += $numErrors
         }
 
@@ -133,7 +132,7 @@ foreach ($file in $files) {
     if ($packagelist -like "*has no vulnerable packages given the current sources*") {
         Write-Output "DotNet,$($file.FullName),OK,0,0,0,0,0" | Out-File -Append -FilePath $csvFileName
     } elseif ($packagelist -like "*uses package.config for NuGet packages*") {
-        Write-Output "WARNING: $($file.FullName) uses package.config." | Tee-Object -Append -FilePath $outFileName
+        Write-Output "WARNING: $($file.FullName) uses package.config or direct DLL references." | Tee-Object -Append -FilePath $outFileName
         $packageConfig++
         Write-Output "DotNet,$($file.FullName),USES PACKAGE.CONFIG,n/a,n/a,n/a,n/a,n/a" | Out-File -Append -FilePath $csvFileName
     } elseif ($packagelist -like "*Unable to read a package reference from the project*") {
