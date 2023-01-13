@@ -28,7 +28,7 @@ foreach ($file in $files) {
     # Is this package.json file within a larger package.json project?
     $isChildOfLargerProject = 0
     $testPath = $file.Directory
-    while (1 -eq 1) {
+    while ($null -ne $testPath) {
         $testPath = Join-Path -Path $testPath -ChildPath ".." | Resolve-Path
         $testPathString = Convert-Path $testPath
         if ($testPathString.Length -lt 4) {
@@ -132,7 +132,7 @@ foreach ($file in $files) {
     if ($packagelist -like "*has no vulnerable packages given the current sources*") {
         Write-Output "DotNet,$($file.FullName),OK,0,0,0,0,0" | Out-File -Append -FilePath $csvFileName
     } elseif ($packagelist -like "*uses package.config for NuGet packages*") {
-        Write-Output "WARNING: $($file.FullName) uses package.config or direct DLL references." | Tee-Object -Append -FilePath $outFileName
+        Write-Output "WARNING: $($file.FullName) uses package.config or an extremely old version of VS tools. Please upgrade it to enable security scans." | Tee-Object -Append -FilePath $outFileName
         $packageConfig++
         Write-Output "DotNet,$($file.FullName),USES PACKAGE.CONFIG,n/a,n/a,n/a,n/a,n/a" | Out-File -Append -FilePath $csvFileName
     } elseif ($packagelist -like "*Unable to read a package reference from the project*") {
@@ -150,7 +150,15 @@ foreach ($file in $files) {
     } elseif ($packagelist -like "*has the following vulnerable packages*") {
         Write-Output "ERROR: $($file.FullName) has security vulnerabilities." | Tee-Object -Append -FilePath $outFileName
         $projectsWithVulnerabilities++
-        Write-Output "DotNet,$($file.FullName),OK,1,0,0,0,0" | Out-File -Append -FilePath $csvFileName
+
+        # Let's do our best to count vulnerabilities
+        $simpleResults = $packagelist -match "\> (.*?)\s+(\d+\.\d+\.\d+)\s+(\d+\.\d+\.\d+)\s+(.*?)\s"
+        $vulnerabilitiesThisProject = 0
+        foreach ($match in $simpleResults) {
+            $vulnerabilitiesThisProject++
+        }
+        Write-Output "DotNet,$($file.FullName),OK,$($vulnerabilitiesThisProject),0,0,0,0" | Out-File -Append -FilePath $csvFileName
+        $totalVulnerabilities += $vulnerabilitiesThisProject
     } else {
         Write-Output "Unknown vulnerability scan for $($file.FullName)" | Tee-Object -Append -FilePath $outFileName
         $unableToBuild++
