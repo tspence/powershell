@@ -148,7 +148,6 @@ foreach ($file in $files) {
         $deprecatedProjects++
         Write-Output "DotNet,$($file.FullName),SILVERLIGHT,n/a,n/a,n/a,n/a,n/a" | Out-File -Append -FilePath $csvFileName
     } elseif ($packagelist -like "*has the following vulnerable packages*") {
-        Write-Output "ERROR: $($file.FullName) has security vulnerabilities." | Tee-Object -Append -FilePath $outFileName
         $projectsWithVulnerabilities++
 
         # Let's do our best to count vulnerabilities
@@ -157,6 +156,7 @@ foreach ($file in $files) {
         foreach ($match in $simpleResults) {
             $vulnerabilitiesThisProject++
         }
+        Write-Output "Found $($vulnerabilitiesThisProject) vulnerabilities in $($file.FullName)." | Tee-Object -Append -FilePath $outFileName
         Write-Output "DotNet,$($file.FullName),OK,$($vulnerabilitiesThisProject),0,0,0,0" | Out-File -Append -FilePath $csvFileName
         $totalVulnerabilities += $vulnerabilitiesThisProject
     } else {
