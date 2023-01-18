@@ -9,10 +9,11 @@ $deprecatedProjects = 0
 $totalErrors = 0
 $totalWarnings = 0
 $totalTests = 0
+$numWarningSolutions = 0
 
 # Determine scan type
 $scanType = $args[0]
-if ($scanType -eq "") {
+if (($scanType -eq "") -or ($null -eq $scanType)) {
     $scanType = "all"
 }
 Write-Output "Scan type: $($scanType)"
@@ -25,7 +26,7 @@ $outFileName = Join-Path -Path $folder -ChildPath "security.$($today).txt"
 $csvFileName = Join-Path -Path $folder -ChildPath "security.$($today).csv"
 
 # Clear out files and write headers
-Write-Output "Repository scan began on $($now)." | Tee-Object -FilePath $outFileName
+Write-Output "Repository scan for $($scanType) began on $($now)." | Tee-Object -FilePath $outFileName
 Write-Output "Type,Location,Build Status,Vulnerabilities,Warnings,Errors,Tests Failed,Tests Passed" | Out-File -FilePath $csvFileName
 
 # Identify all NPM projects, who should each be identified by a file named package.json
@@ -38,6 +39,9 @@ if (($scanType -eq "all") -or ($scanType -eq "nodejs")) {
         $testPath = $file.Directory
         while ($null -ne $testPath) {
             $testPath = Join-Path -Path $testPath -ChildPath ".." | Resolve-Path
+            if ($null -eq $testPath) {
+                break
+            }
             $testPathString = Convert-Path $testPath
             if ($testPathString.Length -lt 4) {
                 break
@@ -247,10 +251,24 @@ $now = Get-Date
 Write-Output "Repository scan of type $($scanType) finished $($now)." | Tee-Object -Append -FilePath $outFileName
 Write-Output "*******************************************************" | Tee-Object -Append -FilePath $outFileName
 Write-Output "Checked $($numProjects) C# and NPM projects." | Tee-Object -Append -FilePath $outFileName
-Write-Output "Found $($unableToBuild) projects that could not be built." | Tee-Object -Append -FilePath $outFileName
-Write-Output "Found $($projectsWithVulnerabilities) projects that contained $($totalVulnerabilities) total security vulnerabilities." | Tee-Object -Append -FilePath $outFileName
-Write-Output "Found $($packageConfig) C# projects using outdated package.config files." | Tee-Object -Append -FilePath $outFileName
-Write-Output "Found $($deprecatedProjects) C# projects using deprecated WebForms or SilverLight." | Tee-Object -Append -FilePath $outFileName
-Write-Output "Found $($totalErrors) errors and $($totalWarnings) warnings in C# solutions." | Tee-Object -Append -FilePath $outFileName
-Write-Output "Found $($numWarningSolutions) C# solutions that need fixes before they can use /warnaserror." | Tee-Object -Append -FilePath $outFileName
-Write-Output "Found $($totalTests) tests with $($testsPassed) passing and $($testsFailed) failing." | Tee-Object -Append -FilePath $outFileName
+if ($unableToBuild -gt 0) {
+    Write-Output "Found $($unableToBuild) projects that could not be built." | Tee-Object -Append -FilePath $outFileName
+}
+if ($projectsWithVulnerabilities -gt 0) {
+    Write-Output "Found $($projectsWithVulnerabilities) projects that contained $($totalVulnerabilities) total security vulnerabilities." | Tee-Object -Append -FilePath $outFileName
+}
+if ($packageConfig -gt 0) {
+    Write-Output "Found $($packageConfig) C# projects using outdated package.config files." | Tee-Object -Append -FilePath $outFileName
+}
+if ($deprecatedProjects -gt 0) {
+    Write-Output "Found $($deprecatedProjects) C# projects using deprecated WebForms or SilverLight." | Tee-Object -Append -FilePath $outFileName
+}
+if (($totalErrors -gt 0) -or ($totalWarnings -gt 0)) {
+    Write-Output "Found $($totalErrors) errors and $($totalWarnings) warnings in C# solutions." | Tee-Object -Append -FilePath $outFileName
+}
+if ($numWarningSolutions -gt 0) {
+    Write-Output "Found $($numWarningSolutions) C# solutions that need fixes before they can use /warnaserror." | Tee-Object -Append -FilePath $outFileName
+}
+if ($totalTests -gt 0) {
+    Write-Output "Found $($totalTests) tests with $($testsPassed) passing and $($testsFailed) failing." | Tee-Object -Append -FilePath $outFileName
+}
