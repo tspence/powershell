@@ -36,18 +36,18 @@ if (($scanType -eq "all") -or ($scanType -eq "nodejs")) {
 
         # Is this package.json file within a larger package.json project?
         $isChildOfLargerProject = 0
-        $testPath = $file.Directory
-        while ($null -ne $testPath) {
-            $testPath = Join-Path -Path $testPath -ChildPath ".." | Resolve-Path
-            if ($null -eq $testPath) {
+        $testPathString = $file.Directory
+        while ($null -ne $testPathString) {
+            $testPathString = "$($testPathString)/.."
+            $pathExists = Test-Path -Path $testPathString -PathType container
+            if (-not ($pathExists)) {
                 break
             }
-            $testPathString = Convert-Path $testPath
+            $testPathString = Convert-Path $testPathString
             if ($testPathString.Length -lt 4) {
                 break
             }
-            $testPackageFile = Join-Path -Path $testPath -ChildPath "package.json"
-            $exists = Test-Path -Path $testPackageFile -PathType leaf
+            $exists = Test-Path -Path "$($testPathString)/package.json" -PathType leaf
             if ($exists) {
                 $isChildOfLargerProject = 1
                 break
@@ -57,13 +57,15 @@ if (($scanType -eq "all") -or ($scanType -eq "nodejs")) {
         # Only test this if it is a standalone project
         if ($isChildOfLargerProject -eq 0) {
             Push-Location $file.Directory
-            $npmInstall = & npm clean-install 2>&1
+            $npmInstall = & npm install 2>&1
             Pop-Location
 
             # Check for projects that can't run npm install
             $numProjects++
             if ($npmInstall -like "*npm ERR!*") {
                 Write-Output "Unable to run npm install on $($file.Directory)." | Tee-Object -Append -FilePath $outFileName
+                Write-Output $npmInstall
+                return
                 $unableToBuild++
                 Write-Output "NodeJS,$($file.Directory),DOES NOT COMPILE,n/a,0,0,0,0" | Out-File -Append -FilePath $csvFileName
             } else {
