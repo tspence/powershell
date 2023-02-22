@@ -10,6 +10,7 @@ $totalErrors = 0
 $totalWarnings = 0
 $totalTests = 0
 $numWarningSolutions = 0
+$numWebFormsPages = 0
 
 # Determine scan type
 $scanType = $args[0]
@@ -36,7 +37,10 @@ if (($scanType -eq "all") -or ($scanType -eq "nodejs")) {
 
         # Is this package.json file within a larger package.json project?
         $isChildOfLargerProject = 0
-        $testPathString = $file.Directory
+        $testPathString = "$($file.Directory)"
+        if ($testPathString -like "*/node_modules/*") {
+            continue
+        }
         while ($null -ne $testPathString) {
             $testPathString = "$($testPathString)/.."
             $pathExists = Test-Path -Path $testPathString -PathType container
@@ -115,11 +119,11 @@ if (($scanType -eq "all") -or ($scanType -eq "sln")) {
             # What type of response did we get?
             $numProjects++
             if ($build -like "*Build FAILED.*") {
-                Write-Output "ERROR: Unable to build $($file.FullName)" | Tee-Object -Append -FilePath $outFileName
+                Write-Output "ERROR: Unable to build $($file.FullName) because build failed" | Tee-Object -Append -FilePath $outFileName
                 $unableToBuild++
                 Write-Output "Solution,$($file.FullName),OK,0,$($warningsThisSolution),$($errorsThisSolution),0,0" | Out-File -Append -FilePath $csvFileName
             } elseif ($errorsThisSolution -gt 0) {
-                Write-Output "ERROR: Unable to build $($file.FullName)" | Tee-Object -Append -FilePath $outFileName
+                Write-Output "ERROR: Unable to build $($file.FullName) due to errors" | Tee-Object -Append -FilePath $outFileName
                 $unableToBuild++
                 Write-Output "Solution,$($file.FullName),OK,0,$($warningsThisSolution),$($errorsThisSolution),0,0" | Out-File -Append -FilePath $csvFileName
             } elseif ($warningsThisSolution -gt 0) {
@@ -248,6 +252,12 @@ if (($scanType -eq "all") -or ($scanType -eq "test")) {
     }
 }
 
+# Identify all CSPROJ files with test in their name and try to run them as VS Console Tests
+if (($scanType -eq "all") -or ($scanType -eq "webforms")) {
+    $files = Get-ChildItem -Path "." -Recurse -Filter "*.aspx"
+    $numWebFormsPages = $files.Length
+}
+
 # Print summary to console and to file
 $now = Get-Date
 Write-Output "Repository scan of type $($scanType) finished $($now)." | Tee-Object -Append -FilePath $outFileName
@@ -273,4 +283,7 @@ if ($numWarningSolutions -gt 0) {
 }
 if ($totalTests -gt 0) {
     Write-Output "Found $($totalTests) tests with $($testsPassed) passing and $($testsFailed) failing." | Tee-Object -Append -FilePath $outFileName
+}
+if ($numWebFormsPages -gt 0) {
+    Write-Output "Found $($numWebFormsPages) WebForms pages that need to be retired." | Tee-Object -Append -FilePath $outFileName
 }
