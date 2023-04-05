@@ -60,8 +60,15 @@ if (($scanType -eq "all") -or ($scanType -eq "nodejs")) {
 
         # Only test this if it is a standalone project
         if ($isChildOfLargerProject -eq 0) {
+
+            # Check whether this is yarn or npm
+            $isYarn = Test-Path -Path "$($file.Directory)\yarn.lock" -PathType leaf
             Push-Location $file.Directory
-            $npmInstall = & npm install 2>&1
+            if ($isYarn) {
+                $npmInstall = & yarn install 2>&1
+            } else {
+                $npmInstall = & npm install 2>&1
+            }
             Pop-Location
 
             # Check for projects that can't run npm install
