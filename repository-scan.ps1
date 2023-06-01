@@ -110,7 +110,7 @@ if (($scanType -eq "all") -or ($scanType -eq "sln")) {
         } else {
 
             # Build this solution using warnings-as-errors
-            $build = & "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\amd64\MSBuild.exe" $file.FullName 2>&1
+            $build = & "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\amd64\MSBuild.exe" $file.FullName /t:Clean,Build 2>&1
 
             # Scan for warnings
             $simpleResults = select-string "\s(\d+) Warning\(s\)" -InputObject $build
