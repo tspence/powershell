@@ -82,13 +82,20 @@ if (($scanType -eq "all") -or ($scanType -eq "nodejs")) {
             } else {
                 # Okay, this project can build, we should be able to do an npm audit
                 Push-Location $file.Directory
-                $npmAudit = & npm audit --json | ConvertFrom-Json
+                if ($isYarn) {
+                    $npmAudit = & yarn audit --json | ConvertFrom-Json
+                    $vulnerabilities = $npmAudit.data.vulnerabilities.moderate + $npmAudit.data.vulnerabilities.high + $npmAudit.data.vulnerabilities.critical
+                    Write-Output "Found $($npmAudit.data.vulnerabilities.critical) critical / $($npmAudit.data.vulnerabilities.high) high / $($npmAudit.data.vulnerabilities.moderate) moderate vulnerabilities in $($file.Directory)." | Tee-Object -Append -FilePath $outFileName
+                    Write-Output "NodeJS+Yarn,$($file.Directory),OK,$($vulnerabilities),0,0,0,0" | Out-File -Append -FilePath $csvFileName
+                } else {
+                    $npmAudit = & npm audit --json | ConvertFrom-Json
+                    $vulnerabilities = $npmAudit.metadata.vulnerabilities.moderate + $npmAudit.metadata.vulnerabilities.high + $npmAudit.metadata.vulnerabilities.critical
+                    Write-Output "Found $($npmAudit.metadata.vulnerabilities.critical) critical / $($npmAudit.metadata.vulnerabilities.high) high / $($npmAudit.metadata.vulnerabilities.moderate) moderate vulnerabilities in $($file.Directory)." | Tee-Object -Append -FilePath $outFileName
+                    Write-Output "NodeJS,$($file.Directory),OK,$($vulnerabilities),0,0,0,0" | Out-File -Append -FilePath $csvFileName
+                }
                 Pop-Location
-                $vulnerabilities = $npmAudit.metadata.vulnerabilities.moderate + $npmAudit.metadata.vulnerabilities.high + $npmAudit.metadata.vulnerabilities.critical
-                Write-Output "Found $($npmAudit.metadata.vulnerabilities.critical) critical / $($npmAudit.metadata.vulnerabilities.high) high / $($npmAudit.metadata.vulnerabilities.moderate) moderate vulnerabilities in $($file.Directory)." | Tee-Object -Append -FilePath $outFileName
                 $totalVulnerabilities += $vulnerabilities
                 $projectsWithVulnerabilities++
-                Write-Output "NodeJS,$($file.Directory),OK,$($vulnerabilities),0,0,0,0" | Out-File -Append -FilePath $csvFileName
             }
         }
     }
