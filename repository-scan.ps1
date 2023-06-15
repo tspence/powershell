@@ -159,46 +159,48 @@ if (($scanType -eq "all") -or ($scanType -eq "sln")) {
 if (($scanType -eq "all") -or ($scanType -eq "csproj")) {
     $files = Get-ChildItem -Path "." -Recurse -Filter "*.csproj"
     foreach ($file in $files) {
+        $numProjects++
 
         # Execute dotnet vulnerability scan and capture output
-        $packagelist = & dotnet list $file.FullName package --vulnerable 2>&1
-
-        # Check type of response
-        $numProjects++
-        if ($packagelist -like "*has no vulnerable packages given the current sources*") {
-            Write-Output "DotNet,$($file.FullName),OK,0,0,0,0,0" | Out-File -Append -FilePath $csvFileName
-        } elseif ($packagelist -like "*uses package.config for NuGet packages*") {
-            Write-Output "WARNING: $($file.FullName) uses package.config or an extremely old version of VS tools. Please upgrade it to enable security scans." | Tee-Object -Append -FilePath $outFileName
-            $packageConfig++
-            Write-Output "DotNet,$($file.FullName),USES PACKAGE.CONFIG,n/a,n/a,n/a,n/a,n/a" | Out-File -Append -FilePath $csvFileName
-        } elseif ($packagelist -like "*Unable to read a package reference from the project*") {
-            Write-Output "ERROR: $($file.FullName) cannot be verified because it cannot be restored/built." | Tee-Object -Append -FilePath $outFileName
-            $unableToBuild++
-            Write-Output "DotNet,$($file.FullName),UNABLE TO RESTORE,n/a,n/a,n/a,n/a,n/a" | Out-File -Append -FilePath $csvFileName
-        } elseif ($packagelist -like "*Microsoft.WebApplication.targets"" was not found*") {
-            Write-Output "ERROR: $($file.FullName) cannot be built because it is an out of support WebForms app." | Tee-Object -Append -FilePath $outFileName
-            $deprecatedProjects++
-            Write-Output "DotNet,$($file.FullName),WEBFORMS,n/a,n/a,n/a,n/a,n/a" | Out-File -Append -FilePath $csvFileName
-        } elseif ($packagelist -like "*Microsoft.Silverlight.CSharp.targets"" was not found*") {
-            Write-Output "ERROR: $($file.FullName) cannot be built because it is an out of support Silverlight app." | Tee-Object -Append -FilePath $outFileName
-            $deprecatedProjects++
-            Write-Output "DotNet,$($file.FullName),SILVERLIGHT,n/a,n/a,n/a,n/a,n/a" | Out-File -Append -FilePath $csvFileName
-        } elseif ($packagelist -like "*has the following vulnerable packages*") {
-            $projectsWithVulnerabilities++
-
-            # Let's do our best to count vulnerabilities
-            $simpleResults = $packagelist -match "\> (.*?)\s+(\d+\.\d+\.\d+)\s+(\d+\.\d+\.\d+)\s+(.*?)\s"
+        $packagelist = & dotnet list $file.FullName package --vulnerable --format json 
+        try {
+            $packages = $packagelist | ConvertFrom-Json
             $vulnerabilitiesThisProject = 0
-            foreach ($match in $simpleResults) {
-                $vulnerabilitiesThisProject++
+            foreach ($package in $packages.projects.frameworks.topLevelPackages) { 
+                foreach ($vulnerability in $package.vulnerabilities) {
+                    Write-Output "Project $($file.FullName) package $($package.id) is a vulnerability [$($item.severity)]"
+                    $vulnerabilitiesThisProject++
+                    $totalVulnerabilities++
+                }
             }
-            Write-Output "Found $($vulnerabilitiesThisProject) vulnerabilities in $($file.FullName)." | Tee-Object -Append -FilePath $outFileName
             Write-Output "DotNet,$($file.FullName),OK,$($vulnerabilitiesThisProject),0,0,0,0" | Out-File -Append -FilePath $csvFileName
-            $totalVulnerabilities += $vulnerabilitiesThisProject
-        } else {
-            Write-Output "Unknown vulnerability scan for $($file.FullName)" | Tee-Object -Append -FilePath $outFileName
-            $unableToBuild++
-            Write-Output "DotNet,$($file.FullName),UNKNOWN,n/a,n/a,n/a,n/a,n/a" | Out-File -Append -FilePath $csvFileName
+
+        } catch {
+            
+            # Regular dotnet package list in JSON didn't work - check text of response
+            if ($packagelist -like "*has no vulnerable packages given the current sources*") {
+                Write-Output "DotNet,$($file.FullName),OK,0,0,0,0,0" | Out-File -Append -FilePath $csvFileName
+            } elseif ($packagelist -like "*uses package.config for NuGet packages*") {
+                Write-Output "WARNING: $($file.FullName) uses package.config or an extremely old version of VS tools. Please upgrade it to enable security scans." | Tee-Object -Append -FilePath $outFileName
+                $packageConfig++
+                Write-Output "DotNet,$($file.FullName),USES PACKAGE.CONFIG,n/a,n/a,n/a,n/a,n/a" | Out-File -Append -FilePath $csvFileName
+            } elseif ($packagelist -like "*Unable to read a package reference from the project*") {
+                Write-Output "ERROR: $($file.FullName) cannot be verified because it cannot be restored/built." | Tee-Object -Append -FilePath $outFileName
+                $unableToBuild++
+                Write-Output "DotNet,$($file.FullName),UNABLE TO RESTORE,n/a,n/a,n/a,n/a,n/a" | Out-File -Append -FilePath $csvFileName
+            } elseif ($packagelist -like "*Microsoft.WebApplication.targets"" was not found*") {
+                Write-Output "ERROR: $($file.FullName) cannot be built because it is an out of support WebForms app." | Tee-Object -Append -FilePath $outFileName
+                $deprecatedProjects++
+                Write-Output "DotNet,$($file.FullName),WEBFORMS,n/a,n/a,n/a,n/a,n/a" | Out-File -Append -FilePath $csvFileName
+            } elseif ($packagelist -like "*Microsoft.Silverlight.CSharp.targets"" was not found*") {
+                Write-Output "ERROR: $($file.FullName) cannot be built because it is an out of support Silverlight app." | Tee-Object -Append -FilePath $outFileName
+                $deprecatedProjects++
+                Write-Output "DotNet,$($file.FullName),SILVERLIGHT,n/a,n/a,n/a,n/a,n/a" | Out-File -Append -FilePath $csvFileName
+            } else {
+                Write-Output "Unknown vulnerability scan for $($file.FullName)" | Tee-Object -Append -FilePath $outFileName
+                $unableToBuild++
+                Write-Output "DotNet,$($file.FullName),UNKNOWN,n/a,n/a,n/a,n/a,n/a" | Out-File -Append -FilePath $csvFileName
+            }
         }
     }
 }
