@@ -1,3 +1,23 @@
+###############################################################################
+##
+## Repository Scanner
+##  - Prints out vulnerabilities and issues found with NodeJS, Yarn, and DotNet
+##    projects
+##  - Identifies all high and critical security vulnerabilities
+##  - Attempts to execute tests and reports results
+##  - Highlight issues that can prevent builds
+##
+##  Syntax:
+##    ./repository-scan.ps1 [all | csproj | nodejs | sln | test | webforms]
+##  
+##  csproj   - Check DotNet projects for vulnerabilities
+##  nodejs   - Check Yarn and NPM projects for vulnerabilities
+##  sln      - Check DotNet solutions
+##  test     - Check DotNet test projects
+##  webforms - Check for outdated WebForms ASPX pages 
+##
+###############################################################################
+
 $totalVulnerabilities = 0
 $testsPassed = 0
 $testsFailed = 0
@@ -179,7 +199,7 @@ if (($scanType -eq "all") -or ($scanType -eq "csproj")) {
             $vulnerabilitiesThisProject = 0
             foreach ($package in $packages.projects.frameworks.topLevelPackages) { 
                 foreach ($vulnerability in $package.vulnerabilities) {
-                    Write-Output "Project $($file.FullName) package $($package.id) is a vulnerability [$($item.severity)]"
+                    Write-Output "Project $($file.FullName) package $($package.id) is a vulnerability [$($vulnerability.severity)]"
                     $vulnerabilitiesThisProject++
                     $totalVulnerabilities++
                 }

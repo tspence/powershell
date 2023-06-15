@@ -1,6 +1,9 @@
 # PowerShell devops scripts
 This repository contains useful PowerShell scripts for devops.
 
+## Repository scanner
+* [repository-scan.ps1](https://raw.githubusercontent.com/tspence/powershell/main/repository-scan.ps1) - Scan a repository to identify vulnerabilities in DotNet, NodeJS, NPM, and Yarn.
+
 ## Security and vulnerability detection
 * [security-dotnet-projects.ps1](https://raw.githubusercontent.com/tspence/powershell/main/security-dotnet-projects.ps1) - [Scan all CSPROJ projects](https://medium.com/codex/powershell-scanning-for-dotnet-projects-and-solutions-26d013d7579a) in a folder for out-of-date compiler tools or package security vulnerabilities.
 * [security-dotnet-solutions.ps1](https://raw.githubusercontent.com/tspence/powershell/main/security-dotnet-solutions.ps1) - [Scan all SLN solutions](https://medium.com/codex/powershell-scanning-for-dotnet-projects-and-solutions-26d013d7579a) in a folder for deprecated technologies, compiler warnings, or build errors.
