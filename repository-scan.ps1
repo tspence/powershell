@@ -11,6 +11,8 @@ $totalWarnings = 0
 $totalTests = 0
 $numWarningSolutions = 0
 $numWebFormsPages = 0
+$appType = ''
+$auditData = {}
 
 # Determine scan type
 $scanType = $args[0]
@@ -84,15 +86,24 @@ if (($scanType -eq "all") -or ($scanType -eq "nodejs")) {
                 Push-Location $file.Directory
                 if ($isYarn) {
                     $npmAudit = & yarn audit --json | ConvertFrom-Json
-                    $vulnerabilities = $npmAudit.data.vulnerabilities.moderate + $npmAudit.data.vulnerabilities.high + $npmAudit.data.vulnerabilities.critical
-                    Write-Output "Found $($npmAudit.data.vulnerabilities.critical) critical / $($npmAudit.data.vulnerabilities.high) high / $($npmAudit.data.vulnerabilities.moderate) moderate vulnerabilities in $($file.Directory)." | Tee-Object -Append -FilePath $outFileName
-                    Write-Output "NodeJS+Yarn,$($file.Directory),OK,$($vulnerabilities),0,0,0,0" | Out-File -Append -FilePath $csvFileName
+                    $appType = "NodeJS+Yarn"
+                    $auditData = $npmAudit.data
                 } else {
                     $npmAudit = & npm audit --json | ConvertFrom-Json
-                    $vulnerabilities = $npmAudit.metadata.vulnerabilities.moderate + $npmAudit.metadata.vulnerabilities.high + $npmAudit.metadata.vulnerabilities.critical
-                    Write-Output "Found $($npmAudit.metadata.vulnerabilities.critical) critical / $($npmAudit.metadata.vulnerabilities.high) high / $($npmAudit.metadata.vulnerabilities.moderate) moderate vulnerabilities in $($file.Directory)." | Tee-Object -Append -FilePath $outFileName
-                    Write-Output "NodeJS,$($file.Directory),OK,$($vulnerabilities),0,0,0,0" | Out-File -Append -FilePath $csvFileName
+                    $appType = "NodeJS"
+                    $auditData = $npmaudit.metadata
                 }
+
+                # Print out all high and critical vulnerabilities
+                foreach ($item in $npmAudit.vulnerabilities.PSObject.Properties) {
+                    if (($item.Value.severity -eq 'high') -or ($item.Value.severity -eq 'critical')) {
+                        Write-Output "Project $($file.Directory) package $($item.Name) is a vulnerability [$($item.Value.severity)]"
+                    }
+                }
+
+                $vulnerabilities = $auditData.vulnerabilities.high + $auditData.vulnerabilities.critical
+                Write-Output "Found $($auditData.vulnerabilities.critical) critical / $($auditData.vulnerabilities.high) high vulnerabilities in $($file.Directory)." | Tee-Object -Append -FilePath $outFileName
+                Write-Output "$($appType),$($file.Directory),OK,$($vulnerabilities),0,0,0,0" | Out-File -Append -FilePath $csvFileName
                 Pop-Location
                 $totalVulnerabilities += $vulnerabilities
                 $projectsWithVulnerabilities++
