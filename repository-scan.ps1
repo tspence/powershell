@@ -117,7 +117,7 @@ if (($scanType -eq "all") -or ($scanType -eq "nodejs")) {
                 # Print out all high and critical vulnerabilities
                 foreach ($item in $npmAudit.vulnerabilities.PSObject.Properties) {
                     if (($item.Value.severity -eq 'high') -or ($item.Value.severity -eq 'critical')) {
-                        Write-Output "Project $($file.Directory) package $($item.Name) is a vulnerability [$($item.Value.severity)]"
+                        Write-Output "Project $($file.Directory) package $($item.Name) is a vulnerability [$($item.Value.severity)]" | Tee-Object -Append -FilePath $outFileName
                     }
                 }
 
@@ -199,7 +199,7 @@ if (($scanType -eq "all") -or ($scanType -eq "csproj")) {
             $vulnerabilitiesThisProject = 0
             foreach ($package in $packages.projects.frameworks.topLevelPackages) { 
                 foreach ($vulnerability in $package.vulnerabilities) {
-                    Write-Output "Project $($file.FullName) package $($package.id) is a vulnerability [$($vulnerability.severity)]"
+                    Write-Output "Project $($file.FullName) package $($package.id) is a vulnerability [$($vulnerability.severity)]" | Tee-Object -Append -FilePath $outFileName
                     $vulnerabilitiesThisProject++
                     $totalVulnerabilities++
                 }
