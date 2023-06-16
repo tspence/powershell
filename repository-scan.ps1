@@ -114,10 +114,21 @@ if (($scanType -eq "all") -or ($scanType -eq "nodejs")) {
                     $auditData = $npmaudit.metadata
                 }
 
+                # Figure out relevant information about dependency chains
+                $packageJson = Get-Content $file | ConvertFrom-Json
+                $dependencyNames = $packageJson.dependencies.PSObject.Properties.Name
+                $devDependencyNames = $packageJson.devDependencies.PSObject.Properties.Name
+
                 # Print out all high and critical vulnerabilities
                 foreach ($item in $npmAudit.vulnerabilities.PSObject.Properties) {
                     if (($item.Value.severity -eq 'high') -or ($item.Value.severity -eq 'critical')) {
-                        Write-Output "Project $($file.Directory) package $($item.Name) is a vulnerability [$($item.Value.severity)]" | Tee-Object -Append -FilePath $outFileName
+                        if ($dependencyNames -contains $item.Name) { 
+                            Write-Output "Project $($file.Directory) package $($item.Name) is a direct dependency vulnerability [$($item.Value.severity)]" | Tee-Object -Append -FilePath $outFileName
+                        } elseif ($devDependencyNames -contains $item.Name) { 
+                            Write-Output "Project $($file.Directory) package $($item.Name) is a development-only vulnerability [$($item.Value.severity)]" | Tee-Object -Append -FilePath $outFileName
+                        } else {
+                            Write-Output "Project $($file.Directory) package $($item.Name) is an indirect vulnerability [$($item.Value.severity)]" | Tee-Object -Append -FilePath $outFileName
+                        }
                     }
                 }
 
