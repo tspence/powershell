@@ -87,9 +87,9 @@ if (($scanType -eq "all") -or ($scanType -eq "nodejs")) {
             $isYarn = Test-Path -Path "$($file.Directory)\yarn.lock" -PathType leaf
             Push-Location $file.Directory
             if ($isYarn) {
-                $npmInstall = & yarn install 2>&1
+                $npmInstall = & yarn install -f 2>&1
             } else {
-                $npmInstall = & npm install 2>&1
+                $npmInstall = & npm install -f 2>&1
             }
             Pop-Location
 
