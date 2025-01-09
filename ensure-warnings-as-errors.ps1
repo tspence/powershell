@@ -46,34 +46,38 @@ if (Test-Path -Path $folderspec) {
                     if ($spacesBeforeElement -lt $spaces) {
                         $spacesBeforeElement = $spaces
                     }
-                    Write-Output "String length: $($str.length) Spaces: ${spaces}"
                 }
             }
 
             # We are at level two: Project is at the root, PropertyGroup is at level one, and the new item we're adding is at level two
             # So we want to determine the number-of-spaces by dividing spacesBeforeElement by two
-            Write-Output "Using ${spacesBeforeElement} spaces per indentation level"
             $spacesBeforeElement = $spacesBeforeElement / 2
-            Write-Output "Using ${spacesBeforeElement} spaces per indentation level"
             $indentation = [string]::new(' ', $spacesBeforeElement)
 
             # Look for that property within this property group
             $node = $propertyGroups[0].SelectSingleNode($key)
             if ($node) {
                 Write-Output "The file '${path}' has project property group ${key} set to '${value}'"
-                Write-Output "Outer XML is '$($node.OuterXml)'"
             } else {
                 Write-Output "File [${path}]: Setting project property group ${key} to '${value}'"
+
+                # Preserve original file contents in case warnings-as-errors breaks this build
+                # $original = Get-Content $path
 
                 # Construct the node with indentation before it, and a newline after it, so it looks appealing within the overall csproj file
                 # Note that we don't need a newline beforehand, for some reason the preserve whitespace option would cause it to be a duplicate
                 # Note that the previous whitespace element would already have indented us once
-                $newNodeText = "${indentation}<" + $key + ">" + $value + "</" + $key + ">`n${indentation}"
+                # Also note that we want to use `r`n since we are running on Windows to avoid changing line endings for the file
+                $newNodeText = "${indentation}<" + $key + ">" + $value + "</" + $key + ">`r`n${indentation}"
                 $newNode = $xml.CreateDocumentFragment()
                 $newNode.InnerXml = $newNodeText
                 # We must save the results of this method call to a variable; otherwise it prints the function result to the console which looks ugly
                 $_ = $xml.Project.PropertyGroup.AppendChild($newNode)
                 $xml.Save($path)
+
+                # Attempt to build the modified project
+                # $buildResults = & dotnet build $path
+
             }
         }
     }
