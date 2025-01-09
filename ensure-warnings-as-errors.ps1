@@ -12,6 +12,20 @@ if (Test-Path -Path $folderspec) {
         $xml.PreserveWhitespace = $true
         $xml.Load($path)
 
+        # What does this look like?
+        # # Function to recursively traverse and print nodes
+        # function Get-XmlNodes($node) {
+        #     if ($node.GetType().FullName -eq "System.Xml.XmlWhitespace") {
+        #         Write-Host "Whitespace: '$($node.OuterXml)'"
+        #     }
+        #     foreach ($child in $node.ChildNodes) {
+        #         Get-XmlNodes $child
+        #     }
+        # }
+
+        # # Start with the root node
+        # Get-XmlNodes $xml.DocumentElement
+
         # We can only proceed if there's a single property group within the csproj file
         $propertyGroups = $xml.SelectNodes("//Project/PropertyGroup")
         if ($propertyGroups.Count -ne 1) {
@@ -22,15 +36,16 @@ if (Test-Path -Path $folderspec) {
             $node = $propertyGroups[0].SelectSingleNode($key)
             if ($node) {
                 Write-Output "The file '${path}' has project property group ${key} set to '${value}'"
+                Write-Output "Outer XML is '$($node.OuterXml)'"
             } else {
                 Write-Output "File [${path}]: Setting project property group ${key} to '${value}'"
 
                 # Construct the node with indentation before it, and a newline after it, so it looks appealing within the overall csproj file
-                $newNodeText = "  <" + $key + ">" + $value + "</" + $key + ">`n  "
+                $newNodeText = "`n<" + $key + ">" + $value + "</" + $key + ">`n"
                 $newNode = $xml.CreateDocumentFragment()
                 $newNode.InnerXml = $newNodeText
                 # We must save the results of this method call to a variable; otherwise it prints the function result to the console which looks ugly
-                $newChild = $xml.Project.PropertyGroup.AppendChild($newNode)
+                _ = $xml.Project.PropertyGroup.AppendChild($newNode)
                 $xml.Save($path)
             }
         }
