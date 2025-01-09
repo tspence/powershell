@@ -12,20 +12,6 @@ if (Test-Path -Path $folderspec) {
         $xml.PreserveWhitespace = $true
         $xml.Load($path)
 
-        # What does this look like?
-        # # Function to recursively traverse and print nodes
-        # function Get-XmlNodes($node) {
-        #     if ($node.GetType().FullName -eq "System.Xml.XmlWhitespace") {
-        #         Write-Host "Whitespace: '$($node.OuterXml)'"
-        #     }
-        #     foreach ($child in $node.ChildNodes) {
-        #         Get-XmlNodes $child
-        #     }
-        # }
-
-        # # Start with the root node
-        # Get-XmlNodes $xml.DocumentElement
-
         # We can only proceed if there's a single property group within the csproj file
         $propertyGroups = $xml.SelectNodes("//Project/PropertyGroup")
         if ($propertyGroups.Count -ne 1) {
@@ -59,10 +45,10 @@ if (Test-Path -Path $folderspec) {
             if ($node) {
                 Write-Output "The file '${path}' has project property group ${key} set to '${value}'"
             } else {
-                Write-Output "File [${path}]: Setting project property group ${key} to '${value}'"
+                Write-Output "Examining [${path}]..."
 
                 # Preserve original file contents in case warnings-as-errors breaks this build
-                # $original = Get-Content $path
+                $original = Get-Content $path
 
                 # Construct the node with indentation before it, and a newline after it, so it looks appealing within the overall csproj file
                 # Note that we don't need a newline beforehand, for some reason the preserve whitespace option would cause it to be a duplicate
@@ -76,8 +62,13 @@ if (Test-Path -Path $folderspec) {
                 $xml.Save($path)
 
                 # Attempt to build the modified project
-                # $buildResults = & dotnet build $path
-
+                $buildResults = & dotnet build $path 
+                if ($?) {
+                    Write-Output "Successfully built ${path} with new setting ${key} to '${value}'"
+                } else {
+                    Write-Output "Unable to build ${path} with the updated property setting, reverting change."
+                    Set-Content -Path $path $original
+                }
             }
         }
     }
