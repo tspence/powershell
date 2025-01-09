@@ -49,6 +49,7 @@ if (Test-Path -Path $folderspec) {
 
                 # Preserve original file contents in case warnings-as-errors breaks this build
                 $original = Get-Content $path
+                Rename-Item -Path $path -NewName "${path}.old"
 
                 # Construct the node with indentation before it, and a newline after it, so it looks appealing within the overall csproj file
                 # Note that we don't need a newline beforehand, for some reason the preserve whitespace option would cause it to be a duplicate
@@ -65,9 +66,12 @@ if (Test-Path -Path $folderspec) {
                 $buildResults = & dotnet build $path 
                 if ($?) {
                     Write-Output "Successfully built ${path} with new setting ${key} to '${value}'"
+                    Remove-Item "${path}.old"
                 } else {
                     Write-Output "Unable to build ${path} with the updated property setting, reverting change."
                     Set-Content -Path $path $original
+                    Remove-Item $path
+                    Rename-Item -Path "${path}.old" -NewName $path
                 }
             }
         }
