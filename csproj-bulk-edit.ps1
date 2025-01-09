@@ -1,11 +1,11 @@
 param (
-    [string][Parameter(Mandatory=$true, Position = 1)]$folder = ".",
-    [string][Parameter(Mandatory=$true, Position = 2)]$property = $(throw "You must specify a property and a value to set for csproj files."),
-    [string][Parameter(Mandatory=$true, Position = 3)]$value = $(throw "You must specify a property and a value to set for csproj files.")
+    [string][AllowNull()][Parameter(Position = 1)]$folder = ".",
+    [string][AllowNull()][Parameter(Position = 2)]$property,
+    [string][AllowNull()][Parameter(Position = 3)]$value
 )
 
 function Usage() {
-    Write-Output
+    Write-Output ""
     Write-Output "Usage:"
     Write-Output "    csproj-bulk-edit <folder> <property> <value>"
     Write-Output ""
@@ -17,7 +17,7 @@ function Usage() {
 }
 
 # Does this folder exist?
-if (-not (Test-Path -Path $folder)) {
+if (!$folder -or -not (Test-Path -Path $folder)) {
     Write-Output "The folder '${folder}' doesn't exist."
     Usage
 }
